@@ -52,42 +52,93 @@
       color: #6b7280;
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 20px;
-    }
-
-    .card {
+    .property-card {
       background: white;
       border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 24px;
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
-    .card h2 {
-      font-size: 1.15rem;
-      margin-bottom: 14px;
+    .property-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 24px;
     }
 
-    .card p {
-      color: #4b5563;
+    .property-header h2 {
+      font-size: 1.4rem;
       margin-bottom: 8px;
-      line-height: 1.4;
     }
 
-    .label {
+    .property-info {
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    .badge {
+      background: #ecfdf5;
+      color: #047857;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
       font-weight: 600;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .metric {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 18px;
+    }
+
+    .metric-label {
+      color: #6b7280;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 1.4rem;
+      font-weight: 700;
       color: #111827;
+    }
+
+    .analysis {
+      margin-top: 20px;
+      padding: 18px;
+      background: #f3f4f6;
+      border-radius: 12px;
+    }
+
+    .analysis-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .analysis-text {
+      color: #4b5563;
+      line-height: 1.5;
     }
 
     .error {
       color: #b91c1c;
     }
 
-    .empty {
-      color: #6b7280;
+    @media (max-width: 600px) {
+      .property-header {
+        flex-direction: column;
+      }
     }
   </style>
 </head>
@@ -109,7 +160,7 @@
       Conectando con la base de datos...
     </div>
 
-    <div id="propiedades" class="grid"></div>
+    <div id="propiedades"></div>
 
   </div>
 
@@ -125,6 +176,31 @@
       SUPABASE_KEY
     );
 
+    function numero(valor) {
+      return Number(valor) || 0;
+    }
+
+    function formatearNumero(valor) {
+      return numero(valor).toLocaleString("es-UY");
+    }
+
+    function calcularInteraccion(propiedad) {
+
+      const visualizaciones = numero(propiedad.visualizaciones);
+
+      if (visualizaciones === 0) {
+        return 0;
+      }
+
+      const interacciones =
+        numero(propiedad.likes) +
+        numero(propiedad.comentarios) +
+        numero(propiedad.guardados) +
+        numero(propiedad.compartidos);
+
+      return (interacciones / visualizaciones) * 100;
+    }
+
     async function cargarPropiedades() {
 
       const status = document.getElementById("status");
@@ -134,21 +210,11 @@
 
         const { data, error } = await client
           .from("propiedades")
-          .select("*");
+          .select("*")
+          .order("created_at", { ascending: false });
 
         if (error) {
           throw error;
-        }
-
-        if (!data || data.length === 0) {
-
-          status.textContent =
-            "Conexión correcta con Supabase.";
-
-          contenedor.innerHTML =
-            '<div class="card empty">No hay propiedades cargadas todavía.</div>';
-
-          return;
         }
 
         status.textContent =
@@ -158,29 +224,98 @@
 
         data.forEach((propiedad) => {
 
-          const card = document.createElement("div");
+          const tasaInteraccion =
+            calcularInteraccion(propiedad);
 
-          card.className = "card";
+          const card =
+            document.createElement("div");
 
-          const titulo =
-            propiedad.titulo ||
-            propiedad.nombre ||
-            `Propiedad #${propiedad.id ?? ""}`;
+          card.className = "property-card";
 
           card.innerHTML = `
-            <h2>${escapeHtml(titulo)}</h2>
+            <div class="property-header">
 
-            ${Object.entries(propiedad)
-              .filter(([campo]) =>
-                !["id", "created_at"].includes(campo)
-              )
-              .map(([campo, valor]) => `
-                <p>
-                  <span class="label">${escapeHtml(campo)}:</span>
-                  ${escapeHtml(valor ?? "-")}
-                </p>
-              `)
-              .join("")}
+              <div>
+                <h2>${escapeHtml(propiedad.nombre || "Propiedad")}</h2>
+
+                <div class="property-info">
+                  ${escapeHtml(propiedad.operacion || "-")}
+                  · USD ${formatearNumero(propiedad.precio)}
+                </div>
+              </div>
+
+              <div class="badge">
+                ${escapeHtml(propiedad.estado || "Sin estado")}
+              </div>
+
+            </div>
+
+            <div class="metrics">
+
+              <div class="metric">
+                <div class="metric-label">Visualizaciones</div>
+                <div class="metric-value">
+                  ${formatearNumero(propiedad.visualizaciones)}
+                </div>
+              </div>
+
+              <div class="metric">
+                <div class="metric-label">Likes</div>
+                <div class="metric-value">
+                  ${formatearNumero(propiedad.likes)}
+                </div>
+              </div>
+
+              <div class="metric">
+                <div class="metric-label">Comentarios</div>
+                <div class="metric-value">
+                  ${formatearNumero(propiedad.comentarios)}
+                </div>
+              </div>
+
+              <div class="metric">
+                <div class="metric-label">Guardados</div>
+                <div class="metric-value">
+                  ${formatearNumero(propiedad.guardados)}
+                </div>
+              </div>
+
+              <div class="metric">
+                <div class="metric-label">Compartidos</div>
+                <div class="metric-value">
+                  ${formatearNumero(propiedad.compartidos)}
+                </div>
+              </div>
+
+              <div class="metric">
+                <div class="metric-label">Interacción</div>
+                <div class="metric-value">
+                  ${tasaInteraccion.toFixed(2)}%
+                </div>
+              </div>
+
+            </div>
+
+            <div class="analysis">
+              <div class="analysis-title">
+                Análisis de Finko
+              </div>
+
+              <div class="analysis-text">
+                Esta publicación registra
+                ${formatearNumero(propiedad.visualizaciones)}
+                visualizaciones y
+                ${formatearNumero(
+                  numero(propiedad.likes) +
+                  numero(propiedad.comentarios) +
+                  numero(propiedad.guardados) +
+                  numero(propiedad.compartidos)
+                )}
+                interacciones totales.
+                Su tasa de interacción actual es de
+                ${tasaInteraccion.toFixed(2)}%.
+              </div>
+            </div>
           `;
 
           contenedor.appendChild(card);
@@ -192,7 +327,8 @@
 
         status.innerHTML =
           `<span class="error">
-            Error al conectar con Supabase: ${escapeHtml(error.message)}
+            Error al conectar con Supabase:
+            ${escapeHtml(error.message)}
           </span>`;
       }
     }
